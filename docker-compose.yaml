@@ -1,0 +1,256 @@
+# Hạ tầng đồ án: Redpanda, Flink, Spark, MinIO + Iceberg REST catalog (PostgreSQL), Trino, Airflow
+# Mọi mật khẩu lấy từ .env (xem .env.example).  Chạy:  docker compose up -d
+#
+# Cổng trên máy:
+#   Redpanda Kafka 19092 | Redpanda Console 8080 | Flink UI 8081 | Spark UI 8082
+#   Trino 8083 | Airflow 8085 | MinIO API 9000, console 9001 | Iceberg REST 8181
+
+x-aws-env: &aws-env
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+  AWS_REGION: ${AWS_REGION}
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.10.3-python3.11
+  env_file: .env
+  environment:
+    <<: *aws-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-db:5432/${AIRFLOW_DB_NAME}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+    PYTHONPATH: /opt/project
+  volumes:
+    - ./batch/airflow/dags:/opt/airflow/dags
+    - ./ingestion:/opt/project/ingestion
+    - ./data:/opt/project/data
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------- Streaming
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda start
+      - --mode dev-container
+      - --smp 1
+      - --memory 1G
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+    ports:
+      - "19092:19092"
+      - "18081:18081"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      retries: 10
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  flink-jobmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    command: jobmanager
+    environment:
+      <<: *aws-env
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        state.backend.type: rocksdb
+        state.checkpoints.dir: s3://${MINIO_BUCKET}/flink/checkpoints
+        s3.endpoint: http://minio:9000
+        s3.path.style.access: true
+        s3.access-key: ${MINIO_ROOT_USER}
+        s3.secret-key: ${MINIO_ROOT_PASSWORD}
+      ENABLE_BUILT_IN_PLUGINS: flink-s3-fs-hadoop-1.18.1.jar
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./streaming/flink:/opt/flink/usrlib
+
+  flink-taskmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    command: taskmanager
+    environment:
+      <<: *aws-env
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        state.backend.type: rocksdb
+        state.checkpoints.dir: s3://${MINIO_BUCKET}/flink/checkpoints
+        s3.endpoint: http://minio:9000
+        s3.path.style.access: true
+        s3.access-key: ${MINIO_ROOT_USER}
+        s3.secret-key: ${MINIO_ROOT_PASSWORD}
+      ENABLE_BUILT_IN_PLUGINS: flink-s3-fs-hadoop-1.18.1.jar
+    volumes:
+      - ./streaming/flink:/opt/flink/usrlib
+    depends_on:
+      - flink-jobmanager
+
+  # ---------------------------------------------------------------- Lakehouse
+  # Docker Hub đã gỡ image minio/minio và minio/mc, nên dùng bản đóng gói của Bitnami (bitnamilegacy).
+  # MINIO_DEFAULT_BUCKETS tự tạo bucket khi khởi động, không cần container minio-init.
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_DEFAULT_BUCKETS: ${MINIO_BUCKET}
+    ports:
+      - "9000:9000"
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 20
+
+  # Bản MinIO của Bitnami không kèm giao diện web; console chạy ở image riêng, cổng 9090 trong container.
+  minio-console:
+    image: bitnamilegacy/minio-object-browser:2.0.2-debian-12-r4
+    command: ["server", "--port", "9090"]
+    environment:
+      CONSOLE_MINIO_SERVER: http://minio:9000
+    ports:
+      - "9001:9090"
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  catalog-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${CATALOG_DB_USER}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD}
+      POSTGRES_DB: ${CATALOG_DB_NAME}
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CATALOG_DB_USER} -d ${CATALOG_DB_NAME}"]
+      interval: 5s
+      retries: 10
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:1.6.0
+    environment:
+      <<: *aws-env
+      CATALOG_URI: jdbc:postgresql://catalog-db:5432/${CATALOG_DB_NAME}
+      CATALOG_JDBC_USER: ${CATALOG_DB_USER}
+      CATALOG_JDBC_PASSWORD: ${CATALOG_DB_PASSWORD}
+      CATALOG_WAREHOUSE: s3://${MINIO_BUCKET}/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+    ports:
+      - "8181:8181"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------- Batch
+  spark-master:
+    image: apache/spark:3.5.3-scala2.12-java17-python3-ubuntu
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      <<: *aws-env
+    ports:
+      - "8082:8080"
+      - "7077:7077"
+    volumes:
+      - ./batch/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./batch/spark:/opt/project/batch/spark
+    depends_on:
+      - iceberg-rest
+
+  spark-worker:
+    image: apache/spark:3.5.3-scala2.12-java17-python3-ubuntu
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      <<: *aws-env
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 2g
+    volumes:
+      - ./batch/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      - ./batch/spark:/opt/project/batch/spark
+    depends_on:
+      - spark-master
+
+  # ---------------------------------------------------------------- Truy vấn
+  trino:
+    image: trinodb/trino:460
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: ${AWS_REGION}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./serving/trino/catalog:/etc/trino/catalog:ro
+    depends_on:
+      - iceberg-rest
+
+  # ---------------------------------------------------------------- Lập lịch
+  airflow-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 5s
+      retries: 10
+
+  airflow-init:   # tạo bảng và tài khoản admin rồi thoát
+    <<: *airflow-common
+    command: >
+      bash -c "airflow db migrate &&
+      airflow users create --role Admin --username $${AIRFLOW_ADMIN_USER}
+      --password $${AIRFLOW_ADMIN_PASSWORD} --firstname admin --lastname admin
+      --email admin@example.com || true"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8085:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  redpanda-data:
+  minio-data:
+  catalog-db-data:
+  airflow-db-data:
+  airflow-logs:

@@ -1,0 +1,10 @@
+# Khóa API
+.env
+
+# Dữ liệu tải về (lớn, tạo lại được bằng script)
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

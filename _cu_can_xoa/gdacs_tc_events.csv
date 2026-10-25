@@ -1,0 +1,9 @@
+﻿eventid,episodeid,name,alertlevel,iscurrent,fromdate,todate,country,severity,in_bien_dong
+1001331,4,Tropical Cyclone NINETEEN-E-26,Green,true,2026-09-29T15:00:00,2026-09-30T09:00:00,,Tropical Depression (maximum wind speed of 56 km/h),False
+1001330,8,Tropical Cyclone HANNA-26,Green,true,2026-09-28T15:00:00,2026-09-30T09:00:00,,Tropical Storm (maximum wind speed of 74 km/h),False
+1001329,13,Tropical Cyclone RACHEL-26,Green,true,2026-09-27T09:00:00,2026-09-30T09:00:00,Mexico,Hurricane/Typhoon > 74 mph (maximum wind speed of 194 km/h),False
+1001321,39,Tropical Cyclone NOLO-26,Green,true,2026-09-13T21:00:00,2026-09-30T09:00:00,United States,Tropical Storm (maximum wind speed of 250 km/h),False
+1001332,2,Tropical Cyclone TWENTYSIX-26,Green,true,2026-09-30T00:00:00,2026-09-30T06:00:00,Northern Mariana Islands,Tropical Depression (maximum wind speed of 204 km/h),False
+1001327,29,Tropical Cyclone SURIGAE-26,Green,true,2026-09-23T06:00:00,2026-09-30T06:00:00,Japan,Tropical Storm (maximum wind speed of 241 km/h),False
+1001325,38,Tropical Cyclone POLO-26,Red,true,2026-09-21T03:00:00,2026-09-30T03:00:00,Mexico,Tropical Depression (maximum wind speed of 287 km/h),False
+1001323,39,Tropical Cyclone FAY-26,Green,true,2026-09-19T15:00:00,2026-09-29T21:00:00,,Tropical Depression (maximum wind speed of 111 km/h),False

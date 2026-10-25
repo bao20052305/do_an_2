@@ -1,0 +1,141 @@
+# Phân vùng H3 cho Biển Đông và vùng xung quanh.
+# Ranh giới là các hình chữ nhật thô; mỗi ô H3 thuộc vùng đầu tiên (priority nhỏ nhất)
+# chứa tâm ô. Ô không thuộc vùng nào rơi vào vùng fallback.
+# Sửa ranh giới: sửa file này rồi chạy lại  python batch/reference/build_h3_regions.py
+
+version: v1
+resolution: 5
+grid_bbox: {lon_min: 95, lat_min: 0, lon_max: 135, lat_max: 30}
+
+# Bản đồ biên giới chỉ dùng để biết ô nào là đất và đất của nước nào.
+# Tên nước trong bảng lấy theo danh sách countries bên dưới.
+natural_earth_url: https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson
+
+# Mã ADM0_A3 của Natural Earth -> (tên vùng đất liền, region_type, country)
+countries:
+  VNM: {name: Đất liền Việt Nam, type: dat_lien, country: Việt Nam}
+  CHN: {name: Đất liền Trung Quốc, type: dat_lien, country: Trung Quốc}
+  HKG: {name: Đất liền Trung Quốc, type: dat_lien, country: Trung Quốc}
+  MAC: {name: Đất liền Trung Quốc, type: dat_lien, country: Trung Quốc}
+  TWN: {name: Đảo Đài Loan, type: dao, country: Đài Loan}
+  PHL: {name: Quần đảo Philippines, type: quan_dao, country: Philippines}
+  LAO: {name: Đất liền Lào, type: dat_lien, country: Lào}
+  KHM: {name: Đất liền Campuchia, type: dat_lien, country: Campuchia}
+  THA: {name: Đất liền Thái Lan, type: dat_lien, country: Thái Lan}
+  MMR: {name: Đất liền Myanmar, type: dat_lien, country: Myanmar}
+  IND: {name: Đất liền Ấn Độ, type: dat_lien, country: Ấn Độ}
+  MYS: {name: Đất liền Malaysia, type: dat_lien, country: Malaysia}
+  SGP: {name: Đảo Singapore, type: dao, country: Singapore}
+  BRN: {name: Đất liền Brunei, type: dat_lien, country: Brunei}
+  IDN: {name: Đất liền Indonesia, type: dat_lien, country: Indonesia}
+  JPN: {name: Quần đảo Nhật Bản (Okinawa), type: quan_dao, country: Nhật Bản}
+  PLW: {name: Quần đảo Palau, type: quan_dao, country: Palau}
+
+# Đảo tách riêng khỏi đất liền của nước đó: ô đất của nước `of` nằm trong hình chữ nhật.
+islands:
+  - {name: Đảo Hải Nam, type: dao, country: Trung Quốc, of: CHN,
+     box: {lat: [18, 20.3], lon: [108.4, 111.3]}}
+
+# Vùng có priority < land_priority được xét TRƯỚC đất liền (quần đảo xa bờ),
+# các vùng còn lại chỉ áp cho ô biển.
+land_priority: 0.5
+
+regions:
+  # ---------------------------------------------------------------- Biển Đông, vùng bản tin Việt Nam
+  - {name: Đặc khu Hoàng Sa, type: quan_dao, country: Việt Nam, priority: 0,
+     box: {lat: [15.5, 17.5], lon: [110.5, 113]}}
+  - {name: Đặc khu Trường Sa, type: quan_dao, country: Việt Nam, priority: 0,
+     box: {lat: [6, 12], lon: [111, 117.5]}}
+  - {name: Bắc vịnh Bắc Bộ, type: vinh, country: "Việt Nam, Trung Quốc", priority: 2,
+     box: {lat: [20, 22], lon: [105.5, 109.5]}}
+  - {name: Nam vịnh Bắc Bộ, type: vinh, country: "Việt Nam, Trung Quốc", priority: 2,
+     box: {lat: [17, 20], lon: [105.5, 108.7]}}
+  - {name: Nam Quảng Trị - Quảng Ngãi, type: bien, country: Việt Nam, priority: 3,
+     box: {lat: [14.5, 17], lon: [107, 110]}}
+  - {name: Gia Lai - Khánh Hòa, type: bien, country: Việt Nam, priority: 3,
+     box: {lat: [11.5, 14.5], lon: [108.5, 110.5]}}
+  - {name: Lâm Đồng - Cà Mau, type: bien, country: Việt Nam, priority: 3,
+     box: {lat: [8, 11.5], lon: [104.8, 109.5]}}
+  - {name: Cà Mau - An Giang, type: bien, country: Việt Nam, priority: 3,
+     box: {lat: [8.5, 10.5], lon: [103, 104.8]}}
+  - {name: Vịnh Thái Lan, type: vinh, country: "Thái Lan, Campuchia, Việt Nam, Malaysia", priority: 4,
+     box: {lat: [6, 13.5], lon: [99, 104.8]}}
+  # ---------------------------------------------------------------- Biển Đông, vùng chung
+  - {name: Eo Đài Loan, type: eo_bien, country: "Trung Quốc, Đài Loan", priority: 4,
+     box: {lat: [22.5, 25.5], lon: [116.5, 121]}}
+  - {name: Eo Malacca - Singapore, type: eo_bien, country: "Malaysia, Singapore, Indonesia", priority: 4,
+     box: {lat: [0, 6], lon: [98, 104.5]}}
+  - {name: Bắc Biển Đông, type: bien, country: "Trung Quốc, Việt Nam, Philippines, Đài Loan", priority: 5,
+     box: {lat: [15, 23.5], lon: [109, 121]}}
+  - {name: Giữa Biển Đông, type: bien, country: "Việt Nam, Philippines", priority: 5,
+     box: {lat: [10, 15], lon: [109, 120.5]}}
+  - {name: Nam Biển Đông, type: bien, country: "Việt Nam, Malaysia, Brunei, Philippines", priority: 5,
+     box: {lat: [5, 10], lon: [104.8, 119]}}
+  - {name: Phía nam Biển Đông (dưới 5°N), type: bien, country: "Malaysia, Indonesia, Brunei", priority: 5,
+     box: {lat: [0, 5], lon: [104.5, 117]}}
+  # ---------------------------------------------------------------- Ngoài Biển Đông
+  - {name: Biển Sulu, type: bien, country: "Philippines, Malaysia", priority: 6,
+     box: {lat: [6, 12], lon: [119, 123]}}
+  - {name: Biển nội thủy Philippines, type: bien, country: Philippines, priority: 6,
+     box: {lat: [9, 14], lon: [121, 126]}}
+  - {name: Biển Celebes, type: bien, country: "Philippines, Indonesia, Malaysia", priority: 6,
+     box: {lat: [0, 7], lon: [117, 126]}}
+  - {name: Biển Molucca và đông Indonesia, type: bien, country: Indonesia, priority: 6,
+     box: {lat: [0, 5], lon: [124, 135]}}
+  - {name: Biển Andaman, type: bien, country: "Myanmar, Thái Lan, Ấn Độ", priority: 6,
+     box: {lat: [5, 17], lon: [95, 98.5]}}
+  - {name: Biển Hoa Đông, type: bien, country: "Trung Quốc, Đài Loan, Nhật Bản", priority: 6,
+     box: {lat: [25.5, 30], lon: [117, 130]}}
+  - {name: Ấn Độ Dương (tây Sumatra), type: bien, country: Quốc tế, priority: 8,
+     box: {lat: [0, 17], lon: [95, 100]}}
+  - {name: Biển Philippines, type: bien, country: Quốc tế, priority: 7,
+     box: {lat: [5, 25.5], lon: [121, 135]}}
+  # vùng nhận mọi ô biển còn lại
+  - {name: Thái Bình Dương (ngoài khơi), type: bien, country: Quốc tế, priority: 9, fallback: true}
+
+# Tên gọi trong bản tin -> các vùng (theo name ở trên). Tên vùng tự nó luôn là alias.
+aliases:
+  vịnh bắc bộ: [Bắc vịnh Bắc Bộ, Nam vịnh Bắc Bộ]
+  hoàng sa: [Đặc khu Hoàng Sa]
+  quần đảo hoàng sa: [Đặc khu Hoàng Sa]
+  trường sa: [Đặc khu Trường Sa]
+  quần đảo trường sa: [Đặc khu Trường Sa]
+  phía nam biển đông: [Phía nam Biển Đông (dưới 5°N)]
+  eo biển đài loan: [Eo Đài Loan]
+  biển đông: [Bắc Biển Đông, Giữa Biển Đông, Nam Biển Đông, Đặc khu Hoàng Sa, Đặc khu Trường Sa]
+
+# Tỉnh ven biển (tên sau sáp nhập 2025) theo thứ tự dọc bờ từ bắc xuống rồi sang bờ tây.
+# Mỗi tỉnh chiếm đoạn [vị trí, vị trí + 1); "Bắc X" là nửa đầu, "Nam X" là nửa sau.
+# Cà Mau có hai bờ: bờ đông (20) và bờ tây (21). Khi gặp tỉnh có nhiều vị trí,
+# chọn vị trí gần đầu kia của khoảng nhất.
+coastal_provinces:
+  Quảng Ninh: [1]
+  Hải Phòng: [2]
+  Hưng Yên: [3]
+  Ninh Bình: [4]
+  Thanh Hóa: [5]
+  Nghệ An: [6]
+  Hà Tĩnh: [7]
+  Quảng Trị: [8]
+  Huế: [9]
+  Đà Nẵng: [10]
+  Quảng Ngãi: [11]
+  Gia Lai: [12]
+  Đắk Lắk: [13]
+  Khánh Hòa: [14]
+  Lâm Đồng: [15]
+  Hồ Chí Minh: [16]
+  Đồng Tháp: [17]
+  Vĩnh Long: [18]
+  Cần Thơ: [19]
+  Cà Mau: [20, 21]
+  An Giang: [22]
+
+# Đoạn bờ [từ, đến) mà mỗi vùng bản tin ven bờ phủ.
+coastal_spans:
+  Bắc vịnh Bắc Bộ: [1, 4]
+  Nam vịnh Bắc Bộ: [4, 8.5]
+  Nam Quảng Trị - Quảng Ngãi: [8.5, 12]
+  Gia Lai - Khánh Hòa: [12, 15]
+  Lâm Đồng - Cà Mau: [15, 21]
+  Cà Mau - An Giang: [21, 23]

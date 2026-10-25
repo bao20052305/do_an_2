@@ -1,0 +1,11 @@
+python-dotenv
+requests
+beautifulsoup4
+pandas
+websockets
+gfw-api-python-client
+pyiceberg[pyarrow,pyiceberg-core]
+h3>=4.1
+shapely>=2.0
+pyyaml
+folium
