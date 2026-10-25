@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Đồ án 2: Giám sát và cảnh báo thời tiết nguy hiểm cho tàu thuyền trên Biển Đông
 
 ## Cấu trúc thư mục
@@ -55,3 +56,6 @@ docker compose up -d
 | Airflow | http://localhost:8085 |
 | MinIO console | http://localhost:9001 |
 | Iceberg REST catalog | http://localhost:8181 |
+=======
+# do_an_2
+>>>>>>> ec9cb519ca546dfe37f5d81761cf9331bd0520d9
